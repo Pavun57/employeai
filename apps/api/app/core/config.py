@@ -23,14 +23,14 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
 
     # LLM
-    llm_provider: str = "lmstudio"  # "grok" | "lmstudio" | "openai_compatible"
+    llm_provider: str = "lmstudio"  # "groq" | "lmstudio" | "openai_compatible"
     llm_base_url: str = "http://localhost:1234/v1"
     llm_api_key: str = ""
     llm_model: str = "default"
 
-    # Grok
-    grok_api_key: str = ""
-    grok_base_url: str = "https://api.x.ai/v1"
+    # Groq
+    groq_api_key: str = ""
+    groq_base_url: str = "https://api.groq.com/openai/v1"
 
     # Encryption
     encryption_key: str = "change-this-to-a-32-byte-hex-key"

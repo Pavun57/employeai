@@ -1,4 +1,4 @@
-"""Abstracted LLM provider — supports Grok API, LM Studio, and any OpenAI-compatible endpoint."""
+"""Abstracted LLM provider — supports Groq API, LM Studio, and any OpenAI-compatible endpoint."""
 
 from typing import AsyncGenerator, Optional
 
@@ -15,10 +15,10 @@ class LLMProvider:
 
     def _configure(self):
         """Set up provider based on settings."""
-        if settings.llm_provider == "grok":
-            self.base_url = settings.grok_base_url
-            self.api_key = settings.grok_api_key
-            self.model = settings.llm_model or "grok-3"
+        if settings.llm_provider == "groq":
+            self.base_url = settings.groq_base_url
+            self.api_key = settings.groq_api_key
+            self.model = settings.llm_model or "llama-3.3-70b-versatile"
         elif settings.llm_provider == "lmstudio":
             self.base_url = settings.llm_base_url
             self.api_key = settings.llm_api_key or "lm-studio"
