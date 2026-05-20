@@ -3,8 +3,8 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import bcrypt
 from fastapi import APIRouter, HTTPException, status
-from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 
@@ -13,7 +13,14 @@ from app.core.auth import create_access_token
 from app.models.user import Organization, Subscription, User
 
 router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
 class RegisterRequest(BaseModel):
@@ -62,7 +69,7 @@ async def register(body: RegisterRequest, db: DbSession):
         id=str(uuid4()),
         email=body.email,
         full_name=body.full_name,
-        password_hash=pwd_context.hash(body.password),
+        password_hash=hash_password(body.password),
         role="user",
         org_id=org.id,
         is_active=True,
@@ -92,7 +99,7 @@ async def login(body: LoginRequest, db: DbSession):
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
-    if not user or not pwd_context.verify(body.password, user.password_hash):
+    if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.is_active:

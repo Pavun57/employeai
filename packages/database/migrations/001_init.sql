@@ -31,6 +31,7 @@ CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) UNIQUE NOT NULL,
     full_name VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),
     avatar_url VARCHAR(500),
     role user_role DEFAULT 'user',
     org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
