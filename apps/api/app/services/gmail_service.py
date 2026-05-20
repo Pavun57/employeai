@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.security import decrypt_token, encrypt_token
-from app.models.agent import AIEmployee, ConnectedPlatform, KnowledgeBase, Conversation, Message
+from app.models.agent import AIEmployee, ConnectedPlatform, KnowledgeBase, Conversation, Message, Task
 
 
 logger = logging.getLogger(__name__)
@@ -287,6 +287,7 @@ async def process_inbox(agent: AIEmployee, db) -> dict:
 
             # Log conversation
             from uuid import uuid4
+            from datetime import datetime, timezone as tz
             conversation = Conversation(
                 id=str(uuid4()),
                 org_id=agent.org_id,
@@ -313,6 +314,20 @@ async def process_inbox(agent: AIEmployee, db) -> dict:
             )
             db.add(incoming)
             db.add(outgoing)
+
+            # Create task record for activity tracking
+            task = Task(
+                id=str(uuid4()),
+                org_id=agent.org_id,
+                agent_id=agent.id,
+                title=f"Replied to: {email['subject'][:100]}",
+                description=f"Auto-replied to email from {sender}",
+                status="completed",
+                priority="medium",
+                platform="gmail",
+                completed_at=datetime.now(tz.utc),
+            )
+            db.add(task)
         else:
             logger.error(f"Failed to send reply to {sender}")
 
