@@ -5,7 +5,7 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, ENUM, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -19,8 +19,8 @@ class AIEmployee(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     org_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    agent_type: Mapped[str] = mapped_column(String(50), nullable=False)  # marketing, support, social_media
-    status: Mapped[str] = mapped_column(String(20), default="configuring")
+    agent_type: Mapped[str] = mapped_column(ENUM("marketing", "support", "social_media", name="agent_type", create_type=False), nullable=False)
+    status: Mapped[str] = mapped_column(ENUM("active", "paused", "configuring", "error", name="agent_status", create_type=False), default="configuring")
     description: Mapped[Optional[str]] = mapped_column(Text)
     config: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
     system_prompt: Mapped[Optional[str]] = mapped_column(Text)
@@ -41,7 +41,7 @@ class ConnectedPlatform(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     org_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False)
-    platform: Mapped[str] = mapped_column(String(50), nullable=False)  # gmail, instagram, linkedin, shopify
+    platform: Mapped[str] = mapped_column(ENUM("gmail", "instagram", "linkedin", "shopify", name="platform_type", create_type=False), nullable=False)
     account_name: Mapped[Optional[str]] = mapped_column(String(255))
     account_id: Mapped[Optional[str]] = mapped_column(String(255))
     access_token_encrypted: Mapped[Optional[bytes]] = mapped_column()
@@ -64,11 +64,11 @@ class Task(Base):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     org_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False)
     agent_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("ai_employees.id"), nullable=False)
-    platform: Mapped[Optional[str]] = mapped_column(String(50))
+    platform: Mapped[Optional[str]] = mapped_column(ENUM("gmail", "instagram", "linkedin", "shopify", name="platform_type", create_type=False))
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(20), default="pending")
-    priority: Mapped[str] = mapped_column(String(20), default="medium")
+    status: Mapped[str] = mapped_column(ENUM("pending", "running", "completed", "failed", "cancelled", name="task_status", create_type=False), default="pending")
+    priority: Mapped[str] = mapped_column(ENUM("low", "medium", "high", "urgent", name="task_priority", create_type=False), default="medium")
     input_data: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
     output_data: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
     error_message: Mapped[Optional[str]] = mapped_column(Text)

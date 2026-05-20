@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID, ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -39,7 +39,7 @@ class User(Base, TimestampMixin):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255))
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
-    role: Mapped[str] = mapped_column(String(20), default="user")
+    role: Mapped[str] = mapped_column(ENUM("user", "admin", name="user_role", create_type=False), default="user")
     org_id: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -55,8 +55,8 @@ class Subscription(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     org_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id"), unique=True)
-    plan: Mapped[str] = mapped_column(String(20), default="free")
-    status: Mapped[str] = mapped_column(String(20), default="active")
+    plan: Mapped[str] = mapped_column(ENUM("free", "pro", "enterprise", name="subscription_plan", create_type=False), default="free")
+    status: Mapped[str] = mapped_column(ENUM("active", "inactive", "suspended", name="subscription_status", create_type=False), default="active")
     max_agents: Mapped[int] = mapped_column(default=1)
     max_tasks_per_day: Mapped[int] = mapped_column(default=50)
     notes: Mapped[Optional[str]] = mapped_column(Text)
