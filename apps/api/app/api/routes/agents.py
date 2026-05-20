@@ -1,5 +1,6 @@
-"""Agent (AI Employee) routes."""
+"""Agent (AI Employee) routes — Support + LinkedIn Poster."""
 
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -8,14 +9,14 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
-from app.models.agent import AIEmployee
+from app.models.agent import AIEmployee, Task, LinkedInAgentConfig, PostDraft
 
 router = APIRouter()
 
 
 class CreateAgentRequest(BaseModel):
     name: str
-    agent_type: str  # marketing, support, social_media
+    agent_type: str  # support, linkedin_poster
     description: Optional[str] = None
     goals: Optional[list[str]] = None
 
@@ -28,18 +29,14 @@ class UpdateAgentRequest(BaseModel):
     config: Optional[dict] = None
 
 
-class AgentResponse(BaseModel):
-    id: str
-    name: str
-    agent_type: str
-    status: str
-    description: Optional[str]
-    goals: Optional[list[str]]
-    config: Optional[dict]
-    created_at: str
-
-    class Config:
-        from_attributes = True
+class LinkedInConfigRequest(BaseModel):
+    topics: list[str] = []
+    posting_style: str = "professional"
+    tone: str = "informative"
+    posting_frequency: str = "daily"
+    preferred_time: Optional[str] = None
+    include_hashtags: bool = True
+    max_length: int = 1300
 
 
 @router.get("/")
@@ -60,6 +57,7 @@ async def list_agents(user: CurrentUser, db: DbSession):
             "status": a.status,
             "description": a.description,
             "goals": a.goals,
+            "config": a.config,
             "created_at": str(a.created_at),
         }
         for a in agents
@@ -72,8 +70,8 @@ async def create_agent(body: CreateAgentRequest, user: CurrentUser, db: DbSessio
     if not user.org_id:
         raise HTTPException(status_code=400, detail="User must belong to an organization")
 
-    if body.agent_type not in ("marketing", "support", "social_media"):
-        raise HTTPException(status_code=400, detail="Invalid agent type")
+    if body.agent_type not in ("support", "linkedin_poster"):
+        raise HTTPException(status_code=400, detail="Invalid agent type. Must be 'support' or 'linkedin_poster'")
 
     agent = AIEmployee(
         id=str(uuid4()),
@@ -88,7 +86,16 @@ async def create_agent(body: CreateAgentRequest, user: CurrentUser, db: DbSessio
     db.add(agent)
     await db.flush()
 
-    return {"id": agent.id, "name": agent.name, "status": agent.status}
+    # Create default LinkedIn config for linkedin_poster agents
+    if body.agent_type == "linkedin_poster":
+        config = LinkedInAgentConfig(
+            id=str(uuid4()),
+            agent_id=agent.id,
+        )
+        db.add(config)
+        await db.flush()
+
+    return {"id": agent.id, "name": agent.name, "status": agent.status, "agent_type": agent.agent_type}
 
 
 @router.get("/{agent_id}")
@@ -101,7 +108,7 @@ async def get_agent(agent_id: str, user: CurrentUser, db: DbSession):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    return {
+    response = {
         "id": agent.id,
         "name": agent.name,
         "agent_type": agent.agent_type,
@@ -109,10 +116,28 @@ async def get_agent(agent_id: str, user: CurrentUser, db: DbSession):
         "description": agent.description,
         "goals": agent.goals,
         "config": agent.config,
-        "system_prompt": agent.system_prompt,
         "created_at": str(agent.created_at),
         "activated_at": str(agent.activated_at) if agent.activated_at else None,
     }
+
+    # Include LinkedIn config if applicable
+    if agent.agent_type == "linkedin_poster":
+        config_result = await db.execute(
+            select(LinkedInAgentConfig).where(LinkedInAgentConfig.agent_id == agent.id)
+        )
+        li_config = config_result.scalar_one_or_none()
+        if li_config:
+            response["linkedin_config"] = {
+                "topics": li_config.topics or [],
+                "posting_style": li_config.posting_style,
+                "tone": li_config.tone,
+                "posting_frequency": li_config.posting_frequency,
+                "preferred_time": str(li_config.preferred_time) if li_config.preferred_time else None,
+                "include_hashtags": li_config.include_hashtags,
+                "max_length": li_config.max_length,
+            }
+
+    return response
 
 
 @router.patch("/{agent_id}")
@@ -124,6 +149,8 @@ async def update_agent(agent_id: str, body: UpdateAgentRequest, user: CurrentUse
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
+
+    was_inactive = agent.status != "active"
 
     if body.name is not None:
         agent.name = body.name
@@ -138,8 +165,164 @@ async def update_agent(agent_id: str, body: UpdateAgentRequest, user: CurrentUse
     if body.config is not None:
         agent.config = body.config
 
+    # When activating an agent, set activated_at
+    if body.status == "active" and was_inactive:
+        agent.activated_at = datetime.now(timezone.utc)
+
     await db.flush()
     return {"id": agent.id, "status": agent.status, "updated": True}
+
+
+@router.put("/{agent_id}/linkedin-config")
+async def update_linkedin_config(agent_id: str, body: LinkedInConfigRequest, user: CurrentUser, db: DbSession):
+    """Update LinkedIn poster agent configuration."""
+    result = await db.execute(
+        select(AIEmployee).where(AIEmployee.id == agent_id, AIEmployee.org_id == user.org_id)
+    )
+    agent = result.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if agent.agent_type != "linkedin_poster":
+        raise HTTPException(status_code=400, detail="Agent is not a LinkedIn poster")
+
+    config_result = await db.execute(
+        select(LinkedInAgentConfig).where(LinkedInAgentConfig.agent_id == agent.id)
+    )
+    config = config_result.scalar_one_or_none()
+
+    if not config:
+        config = LinkedInAgentConfig(id=str(uuid4()), agent_id=agent.id)
+        db.add(config)
+
+    config.topics = body.topics
+    config.posting_style = body.posting_style
+    config.tone = body.tone
+    config.posting_frequency = body.posting_frequency
+    if body.preferred_time:
+        from datetime import time as dt_time
+        parts = body.preferred_time.split(":")
+        config.preferred_time = dt_time(int(parts[0]), int(parts[1]))
+    config.include_hashtags = body.include_hashtags
+    config.max_length = body.max_length
+
+    await db.flush()
+    return {"updated": True}
+
+
+@router.post("/{agent_id}/generate-post")
+async def generate_post(agent_id: str, user: CurrentUser, db: DbSession):
+    """Generate a LinkedIn post draft using AI."""
+    result = await db.execute(
+        select(AIEmployee).where(AIEmployee.id == agent_id, AIEmployee.org_id == user.org_id)
+    )
+    agent = result.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if agent.agent_type != "linkedin_poster":
+        raise HTTPException(status_code=400, detail="Agent is not a LinkedIn poster")
+    if agent.status != "active":
+        raise HTTPException(status_code=400, detail="Agent must be active")
+
+    # Get LinkedIn config
+    config_result = await db.execute(
+        select(LinkedInAgentConfig).where(LinkedInAgentConfig.agent_id == agent.id)
+    )
+    li_config = config_result.scalar_one_or_none()
+
+    topics = li_config.topics if li_config and li_config.topics else ["industry insights"]
+    style = li_config.posting_style if li_config else "professional"
+    tone = li_config.tone if li_config else "informative"
+    max_length = li_config.max_length if li_config else 1300
+    include_hashtags = li_config.include_hashtags if li_config else True
+
+    # Generate post using Groq LLM
+    from app.llm.provider import generate_text
+    prompt = f"""Create a LinkedIn post about one of these topics: {', '.join(topics)}.
+
+Style: {style}
+Tone: {tone}
+Max length: {max_length} characters
+Include hashtags: {'Yes' if include_hashtags else 'No'}
+
+Write an engaging, professional LinkedIn post that encourages interaction. Do not include any preamble or explanation, just the post content."""
+
+    content = await generate_text(prompt)
+
+    # Create post draft
+    draft = PostDraft(
+        id=str(uuid4()),
+        org_id=agent.org_id,
+        agent_id=agent.id,
+        content=content,
+        topics=topics,
+        status="pending_approval",
+    )
+    db.add(draft)
+    await db.flush()
+
+    return {
+        "id": draft.id,
+        "content": draft.content,
+        "status": draft.status,
+        "topics": draft.topics,
+    }
+
+
+@router.post("/{agent_id}/run")
+async def run_agent(agent_id: str, user: CurrentUser, db: DbSession):
+    """Manually trigger an agent to perform its task."""
+    result = await db.execute(
+        select(AIEmployee).where(AIEmployee.id == agent_id, AIEmployee.org_id == user.org_id)
+    )
+    agent = result.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    if agent.status != "active":
+        raise HTTPException(status_code=400, detail="Agent must be active to run")
+
+    if agent.agent_type == "support":
+        # Trigger email processing
+        from app.services.gmail_service import process_inbox
+        result_data = await process_inbox(agent, db)
+        return {"id": agent.id, "message": "Inbox processed", "result": result_data}
+
+    elif agent.agent_type == "linkedin_poster":
+        # Generate a post draft
+        config_result = await db.execute(
+            select(LinkedInAgentConfig).where(LinkedInAgentConfig.agent_id == agent.id)
+        )
+        li_config = config_result.scalar_one_or_none()
+        topics = li_config.topics if li_config and li_config.topics else ["industry insights"]
+        style = li_config.posting_style if li_config else "professional"
+        tone = li_config.tone if li_config else "informative"
+        max_length = li_config.max_length if li_config else 1300
+        include_hashtags = li_config.include_hashtags if li_config else True
+
+        from app.llm.provider import generate_text
+        prompt = f"""Create a LinkedIn post about one of these topics: {', '.join(topics)}.
+
+Style: {style}
+Tone: {tone}
+Max length: {max_length} characters
+Include hashtags: {'Yes' if include_hashtags else 'No'}
+
+Write an engaging, professional LinkedIn post that encourages interaction. Do not include any preamble or explanation, just the post content."""
+
+        content = await generate_text(prompt)
+        draft = PostDraft(
+            id=str(uuid4()),
+            org_id=agent.org_id,
+            agent_id=agent.id,
+            content=content,
+            topics=topics,
+            status="pending_approval",
+        )
+        db.add(draft)
+        await db.flush()
+        return {"id": agent.id, "message": "Post draft created for approval", "draft_id": draft.id}
+
+    return {"id": agent.id, "message": "Agent run completed"}
 
 
 @router.delete("/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)

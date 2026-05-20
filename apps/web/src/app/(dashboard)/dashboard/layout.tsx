@@ -13,12 +13,16 @@ import {
   LogOut,
   Menu,
   X,
+  BookOpen,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/employees", label: "AI Employees", icon: Users },
+  { href: "/dashboard/employees", label: "AI Agents", icon: Users },
+  { href: "/dashboard/knowledge-base", label: "Knowledge Base", icon: BookOpen },
+  { href: "/dashboard/post-drafts", label: "Post Drafts", icon: FileText },
   { href: "/dashboard/integrations", label: "Integrations", icon: Link2 },
   { href: "/dashboard/activity", label: "Activity", icon: Activity },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },

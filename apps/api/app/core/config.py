@@ -47,25 +47,15 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"
 
-    # OAuth - Google
+    # OAuth - Google (Gmail)
     google_client_id: str = ""
     google_client_secret: str = ""
-    google_redirect_uri: str = "http://localhost:3000/api/integrations/gmail/callback"
-
-    # OAuth - Meta (Instagram)
-    meta_app_id: str = ""
-    meta_app_secret: str = ""
-    meta_redirect_uri: str = "http://localhost:3000/api/integrations/instagram/callback"
+    google_redirect_uri: str = "http://localhost:8000/api/integrations/oauth/gmail/callback"
 
     # OAuth - LinkedIn
     linkedin_client_id: str = ""
     linkedin_client_secret: str = ""
-    linkedin_redirect_uri: str = "http://localhost:3000/api/integrations/linkedin/callback"
-
-    # OAuth - Shopify
-    shopify_api_key: str = ""
-    shopify_api_secret: str = ""
-    shopify_redirect_uri: str = "http://localhost:3000/api/integrations/shopify/callback"
+    linkedin_redirect_uri: str = "http://localhost:8000/api/integrations/oauth/linkedin/callback"
 
     class Config:
         env_file = "../../.env"

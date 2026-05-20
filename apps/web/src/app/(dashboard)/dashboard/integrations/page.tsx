@@ -3,13 +3,10 @@
 import { useEffect, useState } from "react";
 import {
   Mail,
-  Instagram,
   Linkedin,
-  ShoppingBag,
   Check,
   Link2,
   Unlink,
-  ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -21,17 +18,8 @@ const PLATFORMS = [
     icon: Mail,
     color: "text-red-600",
     bg: "bg-red-500/10",
-    description: "Send and receive emails, manage campaigns",
-    scopes: ["gmail.modify", "gmail.send"],
-  },
-  {
-    id: "instagram",
-    name: "Instagram",
-    icon: Instagram,
-    color: "text-pink-600",
-    bg: "bg-pink-500/10",
-    description: "Post content, reply to DMs and comments",
-    scopes: ["instagram_basic", "instagram_content_publish"],
+    description: "Auto-reply to customer inquiries using your knowledge base",
+    scopes: ["gmail.modify", "gmail.send", "gmail.readonly"],
   },
   {
     id: "linkedin",
@@ -39,17 +27,8 @@ const PLATFORMS = [
     icon: Linkedin,
     color: "text-blue-700",
     bg: "bg-blue-500/10",
-    description: "Publish posts, manage professional presence",
-    scopes: ["w_member_social", "r_liteprofile"],
-  },
-  {
-    id: "shopify",
-    name: "Shopify",
-    icon: ShoppingBag,
-    color: "text-green-700",
-    bg: "bg-green-500/10",
-    description: "Access orders, products, and customer data",
-    scopes: ["read_orders", "read_products", "read_customers"],
+    description: "Auto-publish AI-generated posts to your LinkedIn profile",
+    scopes: ["w_member_social", "openid", "profile"],
   },
 ];
 
@@ -81,17 +60,13 @@ export default function IntegrationsPage() {
   }
 
   async function handleConnect(platformId: string) {
-    // In production, this would redirect to the OAuth flow
-    // For now, show a placeholder message
-    alert(
-      `OAuth flow for ${platformId} will redirect to the provider's authorization page. Configure your ${platformId.toUpperCase()} credentials in .env first.`
-    );
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/integrations/oauth/${platformId}/authorize`;
   }
 
   async function handleDisconnect(platformId: string) {
     const integration = getIntegration(platformId);
     if (!integration) return;
-    if (!confirm(`Disconnect ${platformId}? Your AI employees won't be able to use it.`)) return;
+    if (!confirm(`Disconnect ${platformId}? Your AI agents won't be able to use it.`)) return;
 
     try {
       await api.disconnectPlatform(integration.id);
@@ -114,7 +89,7 @@ export default function IntegrationsPage() {
       <div>
         <h1 className="text-2xl font-bold">Integrations</h1>
         <p className="text-muted-foreground mt-1">
-          Connect your business platforms so AI employees can work with them
+          Connect Gmail for auto-replies and LinkedIn for automated posting
         </p>
       </div>
 
@@ -181,6 +156,37 @@ export default function IntegrationsPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* How it works section */}
+      <div className="rounded-xl border bg-card p-6">
+        <h2 className="font-semibold mb-4">How It Works</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Mail className="h-4 w-4 text-red-600" />
+              <h3 className="text-sm font-medium">Gmail Auto-Reply</h3>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+              <li>Connect your Gmail account</li>
+              <li>Add entries to your Knowledge Base</li>
+              <li>Activate the Support Agent</li>
+              <li>Incoming inquiry emails get auto-replied using your KB</li>
+            </ol>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Linkedin className="h-4 w-4 text-blue-700" />
+              <h3 className="text-sm font-medium">LinkedIn Auto-Post</h3>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+              <li>Connect your LinkedIn account</li>
+              <li>Set up topics and posting schedule</li>
+              <li>AI generates post drafts for your review</li>
+              <li>Approve to publish or edit before posting</li>
+            </ol>
+          </div>
+        </div>
       </div>
     </div>
   );

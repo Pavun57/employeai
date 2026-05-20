@@ -1,10 +1,10 @@
-"""AI Employee and Task models."""
+"""AI Employee, Knowledge Base, Post Draft, and Task models."""
 
-from datetime import datetime
+from datetime import datetime, time
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Time
 from sqlalchemy.dialects.postgresql import ARRAY, ENUM, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,7 +19,7 @@ class AIEmployee(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     org_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    agent_type: Mapped[str] = mapped_column(ENUM("marketing", "support", "social_media", name="agent_type", create_type=False), nullable=False)
+    agent_type: Mapped[str] = mapped_column(ENUM("marketing", "support", "social_media", "linkedin_poster", name="agent_type", create_type=False), nullable=False)
     status: Mapped[str] = mapped_column(ENUM("active", "paused", "configuring", "error", name="agent_status", create_type=False), default="configuring")
     description: Mapped[Optional[str]] = mapped_column(Text)
     config: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
@@ -32,6 +32,8 @@ class AIEmployee(Base, TimestampMixin):
     organization = relationship("Organization", back_populates="ai_employees")
     tasks = relationship("Task", back_populates="agent")
     conversations = relationship("Conversation", back_populates="agent")
+    post_drafts = relationship("PostDraft", back_populates="agent")
+    linkedin_config = relationship("LinkedInAgentConfig", back_populates="agent", uselist=False)
 
 
 class ConnectedPlatform(Base, TimestampMixin):
@@ -54,6 +56,59 @@ class ConnectedPlatform(Base, TimestampMixin):
 
     # Relationships
     organization = relationship("Organization", back_populates="connected_platforms")
+
+
+class KnowledgeBase(Base, TimestampMixin):
+    """Knowledge base entries for customer support auto-replies."""
+
+    __tablename__ = "knowledge_base"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    org_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[Optional[str]] = mapped_column(String(100))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class PostDraft(Base, TimestampMixin):
+    """LinkedIn post drafts with approval workflow."""
+
+    __tablename__ = "post_drafts"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    org_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False)
+    agent_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("ai_employees.id"), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    topics: Mapped[Optional[list]] = mapped_column(ARRAY(String))
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    scheduled_for: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    approved_by: Mapped[Optional[str]] = mapped_column(UUID(as_uuid=False), ForeignKey("users.id"))
+    posted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    linkedin_post_id: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Relationships
+    agent = relationship("AIEmployee", back_populates="post_drafts")
+
+
+class LinkedInAgentConfig(Base, TimestampMixin):
+    """Configuration for LinkedIn poster agent."""
+
+    __tablename__ = "linkedin_agent_config"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    agent_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("ai_employees.id"), unique=True, nullable=False)
+    topics: Mapped[Optional[list]] = mapped_column(ARRAY(String), default=list)
+    posting_style: Mapped[str] = mapped_column(String(50), default="professional")
+    tone: Mapped[str] = mapped_column(String(50), default="informative")
+    posting_frequency: Mapped[str] = mapped_column(String(50), default="daily")
+    preferred_time: Mapped[Optional[time]] = mapped_column(Time, default=None)
+    include_hashtags: Mapped[bool] = mapped_column(Boolean, default=True)
+    max_length: Mapped[int] = mapped_column(Integer, default=1300)
+
+    # Relationships
+    agent = relationship("AIEmployee", back_populates="linkedin_config")
 
 
 class Task(Base):

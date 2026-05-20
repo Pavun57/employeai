@@ -4,44 +4,35 @@ import { useEffect, useState } from "react";
 import {
   Bot,
   Plus,
-  Megaphone,
   MessageSquare,
-  Instagram,
+  Linkedin,
   Play,
   Pause,
   Trash2,
   X,
+  Mail,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const AGENT_TYPES = [
   {
-    type: "marketing",
-    name: "Digital Marketing Manager",
-    icon: Megaphone,
-    color: "text-primary",
-    bg: "bg-primary/10",
-    description:
-      "Creates email campaigns, writes ad copy, plans content calendars, and optimizes your marketing strategy.",
-  },
-  {
     type: "support",
-    name: "Customer Support Executive",
+    name: "Customer Support Agent",
     icon: MessageSquare,
     color: "text-green-600",
     bg: "bg-green-500/10",
     description:
-      "Responds to customer queries instantly, categorizes tickets, and escalates when needed.",
+      "Automatically replies to customer inquiry emails using your knowledge base. Connect Gmail to get started.",
   },
   {
-    type: "social_media",
-    name: "Social Media Manager",
-    icon: Instagram,
-    color: "text-pink-600",
-    bg: "bg-pink-500/10",
+    type: "linkedin_poster",
+    name: "LinkedIn Content Agent",
+    icon: Linkedin,
+    color: "text-blue-700",
+    bg: "bg-blue-500/10",
     description:
-      "Creates content, schedules posts, responds to engagement, and researches trending topics.",
+      "Generates LinkedIn posts based on your topics and schedule. Posts are sent for approval before publishing.",
   },
 ];
 
@@ -102,6 +93,15 @@ export default function EmployeesPage() {
     }
   }
 
+  async function runAgent(agent: any) {
+    try {
+      await api.runAgent(agent.id);
+      alert(`${agent.name} is now working! Check the Activity page.`);
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
   async function deleteAgent(agent: any) {
     if (!confirm(`Delete "${agent.name}"? This cannot be undone.`)) return;
     try {
@@ -124,9 +124,9 @@ export default function EmployeesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">AI Employees</h1>
+          <h1 className="text-2xl font-bold">AI Agents</h1>
           <p className="text-muted-foreground mt-1">
-            Manage your AI workforce
+            Manage your automated support and content agents
           </p>
         </div>
         <button
@@ -134,7 +134,7 @@ export default function EmployeesPage() {
           className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" />
-          Hire AI Employee
+          Create Agent
         </button>
       </div>
 
@@ -142,17 +142,16 @@ export default function EmployeesPage() {
       {agents.length === 0 ? (
         <div className="rounded-xl border border-dashed p-12 text-center">
           <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold">No AI employees yet</h3>
+          <h3 className="text-lg font-semibold">No AI agents yet</h3>
           <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-            Hire your first AI employee to start automating your business tasks.
-            Choose from Marketing, Support, or Social Media specialists.
+            Create your first AI agent — a Customer Support agent for auto-replying to emails, or a LinkedIn agent for automated posting.
           </p>
           <button
             onClick={() => setShowCreate(true)}
             className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Hire Your First Employee
+            Create Your First Agent
           </button>
         </div>
       ) : (
@@ -235,6 +234,14 @@ export default function EmployeesPage() {
                       </>
                     )}
                   </button>
+                  {agent.status === "active" && (
+                    <button
+                      onClick={() => runAgent(agent)}
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                    >
+                      <Play className="h-3 w-3" /> Run
+                    </button>
+                  )}
                   <button
                     onClick={() => deleteAgent(agent)}
                     className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors ml-auto"
@@ -253,7 +260,7 @@ export default function EmployeesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-xl bg-card border shadow-xl">
             <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-lg font-semibold">Hire AI Employee</h2>
+              <h2 className="text-lg font-semibold">Create AI Agent</h2>
               <button
                 onClick={() => setShowCreate(false)}
                 className="text-muted-foreground hover:text-foreground"
@@ -340,7 +347,7 @@ export default function EmployeesPage() {
                   disabled={creating || !createForm.agent_type || !createForm.name}
                   className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
-                  {creating ? "Creating..." : "Hire Employee"}
+                  {creating ? "Creating..." : "Create Agent"}
                 </button>
               </div>
             </form>

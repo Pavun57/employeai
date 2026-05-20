@@ -97,3 +97,12 @@ class LLMProvider:
 
 # Singleton instance
 llm = LLMProvider()
+
+
+async def generate_text(prompt: str, temperature: float = 0.7, max_tokens: int = 2048) -> str:
+    """Convenience function to generate text from a prompt."""
+    return await llm.chat(
+        messages=[{"role": "user", "content": prompt}],
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
