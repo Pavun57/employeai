@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   X,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,12 +35,30 @@ export default function DashboardLayout({
 
   useEffect(() => {
     const token = localStorage.getItem("employeai_token");
-    const userData = localStorage.getItem("employeai_user");
     if (!token) {
       router.push("/login");
       return;
     }
-    if (userData) setUser(JSON.parse(userData));
+    // Load fresh user data from API
+    async function loadUser() {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/me`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) {
+          router.push("/login");
+          return;
+        }
+        const data = await res.json();
+        localStorage.setItem("employeai_user", JSON.stringify(data));
+        setUser(data);
+      } catch {
+        const userData = localStorage.getItem("employeai_user");
+        if (userData) setUser(JSON.parse(userData));
+      }
+    }
+    loadUser();
   }, [router]);
 
   function handleLogout() {
@@ -101,6 +120,18 @@ export default function DashboardLayout({
             );
           })}
         </nav>
+
+        {user?.role === "admin" && (
+          <div className="px-4 mt-2">
+            <Link
+              href="/admin"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <Shield className="h-4 w-4" />
+              Admin Panel
+            </Link>
+          </div>
+        )}
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
           <div className="flex items-center gap-3 mb-3">

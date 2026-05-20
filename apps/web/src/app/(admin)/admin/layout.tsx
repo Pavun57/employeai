@@ -34,17 +34,32 @@ export default function AdminLayout({
 
   useEffect(() => {
     const token = localStorage.getItem("employeai_token");
-    const userData = localStorage.getItem("employeai_user");
     if (!token) {
       router.push("/login");
       return;
     }
-    if (userData) {
-      const user = JSON.parse(userData);
-      if (user.role !== "admin") {
-        router.push("/dashboard");
+    // Verify admin role from API (not stale localStorage)
+    async function checkAdmin() {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/auth/me`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) {
+          router.push("/login");
+          return;
+        }
+        const user = await res.json();
+        // Update localStorage with fresh role
+        localStorage.setItem("employeai_user", JSON.stringify(user));
+        if (user.role !== "admin") {
+          router.push("/dashboard");
+        }
+      } catch {
+        router.push("/login");
       }
     }
+    checkAdmin();
   }, [router]);
 
   function handleLogout() {
