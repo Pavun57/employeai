@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     shopify_redirect_uri: str = "http://localhost:3000/api/integrations/shopify/callback"
 
     class Config:
-        env_file = ".env"
+        env_file = "../../.env"
         extra = "ignore"
 
 
