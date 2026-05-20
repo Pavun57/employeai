@@ -90,7 +90,7 @@ employeai/
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/pavun-developer/employeai.git
+git clone https://github.com/Pavun57/employeai.git
 cd employeai
 
 # Frontend dependencies
@@ -326,7 +326,7 @@ EmployAI supports multiple LLM backends:
 
 ```bash
 # Clone and setup
-git clone https://github.com/pavun-developer/employeai.git
+git clone https://github.com/Pavun57/employeai.git
 cd employeai && cp .env.example .env
 # Edit .env with production values
 
@@ -381,6 +381,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ## Author
 
-Built by [@pavun-developer](https://github.com/pavun-developer)
+Built by [@Pavun57](https://github.com/Pavun57)
 
 If this project helped you, give it a ⭐ on GitHub!

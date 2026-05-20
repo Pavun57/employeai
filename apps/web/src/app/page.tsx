@@ -38,7 +38,7 @@ export default function LandingPage() {
               Self-Host
             </a>
             <a
-              href="https://github.com/pavun-developer/employeai"
+              href="https://github.com/Pavun57/employeai"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
@@ -90,7 +90,7 @@ export default function LandingPage() {
               <ArrowRight className="h-4 w-4" />
             </Link>
             <a
-              href="https://github.com/pavun-developer/employeai"
+              href="https://github.com/Pavun57/employeai"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-lg border px-6 py-3 text-base font-medium hover:bg-accent transition-colors"
@@ -291,7 +291,7 @@ export default function LandingPage() {
             <div className="space-y-4 font-mono text-sm">
               <div className="flex items-start gap-3">
                 <span className="text-muted-foreground select-none">$</span>
-                <span>git clone https://github.com/pavun-developer/employeai.git</span>
+                <span>git clone https://github.com/Pavun57/employeai.git</span>
               </div>
               <div className="flex items-start gap-3">
                 <span className="text-muted-foreground select-none">$</span>
@@ -313,7 +313,7 @@ export default function LandingPage() {
           <p className="text-center text-sm text-muted-foreground mt-6">
             Or run without Docker — see the{" "}
             <a
-              href="https://github.com/pavun-developer/employeai#quick-start"
+              href="https://github.com/Pavun57/employeai#quick-start"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary underline"
@@ -343,7 +343,7 @@ export default function LandingPage() {
               <ArrowRight className="h-4 w-4" />
             </Link>
             <a
-              href="https://github.com/pavun-developer/employeai"
+              href="https://github.com/Pavun57/employeai"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-lg border px-6 py-3 text-base font-medium hover:bg-accent transition-colors"
@@ -367,7 +367,7 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-6">
             <a
-              href="https://github.com/pavun-developer/employeai"
+              href="https://github.com/Pavun57/employeai"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -375,7 +375,7 @@ export default function LandingPage() {
               GitHub
             </a>
             <a
-              href="https://github.com/pavun-developer/employeai/issues"
+              href="https://github.com/Pavun57/employeai/issues"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
