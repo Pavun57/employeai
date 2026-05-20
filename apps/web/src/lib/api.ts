@@ -139,38 +139,6 @@ class ApiClient {
     return this.request<any>(`/api/tasks/${id}/cancel`, { method: "POST" });
   }
 
-  // Admin
-  async adminListUsers(params?: { search?: string; limit?: number; offset?: number }) {
-    const searchParams = new URLSearchParams();
-    if (params?.search) searchParams.set("search", params.search);
-    if (params?.limit) searchParams.set("limit", String(params.limit));
-    if (params?.offset) searchParams.set("offset", String(params.offset));
-    const qs = searchParams.toString();
-    return this.request<any>(`/api/admin/users${qs ? `?${qs}` : ""}`);
-  }
-
-  async adminUpdateUser(id: string, data: { role?: string; is_active?: boolean }) {
-    return this.request<any>(`/api/admin/users/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async adminListSubscriptions() {
-    return this.request<any[]>("/api/admin/subscriptions");
-  }
-
-  async adminUpdateSubscription(orgId: string, data: any) {
-    return this.request<any>(`/api/admin/subscriptions/${orgId}`, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async adminGetStats() {
-    return this.request<any>("/api/admin/stats");
-  }
-
   // Knowledge Base
   async listKnowledgeBase(params?: { category?: string; limit?: number; offset?: number }) {
     const searchParams = new URLSearchParams();

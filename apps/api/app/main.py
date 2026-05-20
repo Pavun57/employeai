@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import agents, admin, auth, integrations, tasks, knowledge_base, post_drafts
+from app.api.routes import agents, auth, integrations, tasks, knowledge_base, post_drafts
 from app.core.config import settings
 from app.core.database import engine
 
@@ -92,7 +92,6 @@ app.include_router(integrations.router, prefix="/api/integrations", tags=["integ
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(knowledge_base.router, prefix="/api/knowledge-base", tags=["knowledge-base"])
 app.include_router(post_drafts.router, prefix="/api/post-drafts", tags=["post-drafts"])
-app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 
 
 @app.get("/health")

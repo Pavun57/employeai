@@ -6,11 +6,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
 from app.models.agent import AIEmployee, Task, LinkedInAgentConfig, PostDraft
-from app.models.user import Subscription
 
 router = APIRouter()
 
@@ -73,25 +72,6 @@ async def create_agent(body: CreateAgentRequest, user: CurrentUser, db: DbSessio
 
     if body.agent_type not in ("support", "linkedin_poster"):
         raise HTTPException(status_code=400, detail="Invalid agent type. Must be 'support' or 'linkedin_poster'")
-
-    # Check plan limits
-    sub_result = await db.execute(
-        select(Subscription).where(Subscription.org_id == user.org_id)
-    )
-    subscription = sub_result.scalar_one_or_none()
-    max_agents = subscription.max_agents if subscription else 1
-
-    agent_count_result = await db.execute(
-        select(func.count()).where(AIEmployee.org_id == user.org_id)
-    )
-    current_count = agent_count_result.scalar() or 0
-
-    if current_count >= max_agents:
-        plan_name = subscription.plan if subscription else "free"
-        raise HTTPException(
-            status_code=403,
-            detail=f"Agent limit reached. Your {plan_name} plan allows {max_agents} agent(s). Upgrade to add more.",
-        )
 
     agent = AIEmployee(
         id=str(uuid4()),

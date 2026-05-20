@@ -12,7 +12,6 @@ import {
   LogOut,
   Menu,
   X,
-  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -120,18 +119,6 @@ export default function DashboardLayout({
             );
           })}
         </nav>
-
-        {user?.role === "admin" && (
-          <div className="px-4 mt-2">
-            <Link
-              href="/admin"
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <Shield className="h-4 w-4" />
-              Admin Panel
-            </Link>
-          </div>
-        )}
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
           <div className="flex items-center gap-3 mb-3">
