@@ -1,21 +1,24 @@
 """Gmail service — reads inbox, detects inquiries, generates auto-replies."""
 
 import base64
+import logging
 from email.mime.text import MIMEText
 from typing import Optional
 
 import httpx
 from sqlalchemy import select
 
-from app.core.security import decrypt_token
+from app.core.config import settings
+from app.core.security import decrypt_token, encrypt_token
 from app.models.agent import AIEmployee, ConnectedPlatform, KnowledgeBase, Conversation, Message
 
 
+logger = logging.getLogger(__name__)
 GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
 
 
 async def get_gmail_token(org_id: str, db) -> Optional[str]:
-    """Get decrypted Gmail access token for an organization."""
+    """Get valid Gmail access token, refreshing if expired."""
     result = await db.execute(
         select(ConnectedPlatform).where(
             ConnectedPlatform.org_id == org_id,
@@ -25,8 +28,56 @@ async def get_gmail_token(org_id: str, db) -> Optional[str]:
     )
     platform = result.scalar_one_or_none()
     if not platform or not platform.access_token_encrypted:
+        logger.error(f"Gmail not connected for org {org_id}")
         return None
-    return decrypt_token(platform.access_token_encrypted)
+
+    access_token = decrypt_token(platform.access_token_encrypted)
+
+    # Test if current token works
+    async with httpx.AsyncClient() as client:
+        test_resp = await client.get(
+            f"{GMAIL_API_BASE}/profile",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+    if test_resp.status_code == 200:
+        return access_token
+
+    # Token expired — try refresh
+    logger.info(f"Gmail access token expired for org {org_id}, attempting refresh...")
+
+    if not platform.refresh_token_encrypted:
+        logger.error(f"No refresh token available for org {org_id}")
+        return None
+
+    refresh_token = decrypt_token(platform.refresh_token_encrypted)
+    async with httpx.AsyncClient() as client:
+        resp = await client.post("https://oauth2.googleapis.com/token", data={
+            "client_id": settings.google_client_id,
+            "client_secret": settings.google_client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        })
+
+    if resp.status_code != 200:
+        logger.error(f"Gmail token refresh failed: {resp.status_code} - {resp.text}")
+        return None
+
+    token_data = resp.json()
+    new_access_token = token_data.get("access_token", "")
+    if not new_access_token:
+        logger.error("Gmail refresh response missing access_token")
+        return None
+
+    # Update stored token
+    platform.access_token_encrypted = encrypt_token(new_access_token)
+    # If a new refresh token is issued, update it too
+    if token_data.get("refresh_token"):
+        platform.refresh_token_encrypted = encrypt_token(token_data["refresh_token"])
+
+    await db.flush()
+    logger.info(f"Gmail token refreshed successfully for org {org_id}")
+    return new_access_token
 
 
 async def get_knowledge_base_context(org_id: str, db) -> str:
@@ -54,13 +105,19 @@ async def fetch_unread_emails(token: str, max_results: int = 10) -> list[dict]:
         # Get unread messages
         resp = await client.get(
             f"{GMAIL_API_BASE}/messages",
-            params={"q": "is:unread in:inbox", "maxResults": max_results},
+            params={"q": "is:unread in:inbox category:primary", "maxResults": max_results},
             headers={"Authorization": f"Bearer {token}"},
         )
         if resp.status_code != 200:
+            logger.error(f"Gmail messages list failed: {resp.status_code} - {resp.text}")
             return []
 
         messages_list = resp.json().get("messages", [])
+        logger.info(f"Found {len(messages_list)} unread messages in inbox")
+
+        if not messages_list:
+            return []
+
         emails = []
 
         for msg_ref in messages_list:
@@ -70,6 +127,7 @@ async def fetch_unread_emails(token: str, max_results: int = 10) -> list[dict]:
                 headers={"Authorization": f"Bearer {token}"},
             )
             if msg_resp.status_code != 200:
+                logger.warning(f"Failed to fetch message {msg_ref['id']}: {msg_resp.status_code}")
                 continue
 
             msg_data = msg_resp.json()
@@ -149,6 +207,8 @@ async def send_reply(token: str, thread_id: str, to: str, subject: str, reply_bo
             json={"raw": raw, "threadId": thread_id},
             headers={"Authorization": f"Bearer {token}"},
         )
+        if resp.status_code != 200:
+            logger.error(f"Gmail send failed ({resp.status_code}): {resp.text}")
         return resp.status_code == 200
 
 
@@ -165,27 +225,42 @@ async def mark_as_read(token: str, message_id: str) -> bool:
 
 async def process_inbox(agent: AIEmployee, db) -> dict:
     """Main function: process unread emails and auto-reply using knowledge base."""
+    logger.info(f"Processing inbox for agent '{agent.name}' (org: {agent.org_id})")
+
     token = await get_gmail_token(agent.org_id, db)
     if not token:
-        return {"error": "Gmail not connected", "processed": 0}
+        logger.error("Cannot process inbox — no valid Gmail token")
+        return {"error": "Gmail not connected or token expired. Please reconnect Gmail.", "processed": 0}
 
     # Get knowledge base context
     kb_context = await get_knowledge_base_context(agent.org_id, db)
+    logger.info(f"KB context loaded ({len(kb_context)} chars)")
 
     # Fetch unread emails
     emails = await fetch_unread_emails(token, max_results=5)
     if not emails:
+        logger.info("No unread emails to process")
         return {"processed": 0, "message": "No unread emails"}
 
+    logger.info(f"Processing {len(emails)} unread emails...")
     processed = 0
     replies_sent = 0
 
     for email in emails:
         # Skip emails from noreply or automated sources
         sender = email["from"]
-        if any(skip in sender.lower() for skip in ["noreply", "no-reply", "mailer-daemon", "notifications"]):
+        sender_lower = sender.lower()
+        if any(skip in sender_lower for skip in [
+            "noreply", "no-reply", "no_reply", "mailer-daemon", "notifications",
+            "newsletter", "marketing", "hello@mail.", "updates@",
+            "digest@", "info@mail.", "team@mail.", "notification",
+        ]):
+            logger.info(f"Skipping automated/marketing email from: {sender}")
             await mark_as_read(token, email["id"])
+            processed += 1
             continue
+
+        logger.info(f"Generating reply for email from {sender}: '{email['subject']}'")
 
         # Generate reply
         reply = await generate_reply(
@@ -206,6 +281,7 @@ async def process_inbox(agent: AIEmployee, db) -> dict:
 
         if success:
             replies_sent += 1
+            logger.info(f"Reply sent to {sender}")
             # Mark as read
             await mark_as_read(token, email["id"])
 
@@ -237,8 +313,11 @@ async def process_inbox(agent: AIEmployee, db) -> dict:
             )
             db.add(incoming)
             db.add(outgoing)
+        else:
+            logger.error(f"Failed to send reply to {sender}")
 
         processed += 1
 
     await db.flush()
+    logger.info(f"Inbox processing complete: {processed} processed, {replies_sent} replies sent")
     return {"processed": processed, "replies_sent": replies_sent}

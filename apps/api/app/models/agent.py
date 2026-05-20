@@ -146,7 +146,7 @@ class Conversation(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     org_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False)
     agent_id: Mapped[str] = mapped_column(UUID(as_uuid=False), ForeignKey("ai_employees.id"), nullable=False)
-    platform: Mapped[Optional[str]] = mapped_column(String(50))
+    platform: Mapped[Optional[str]] = mapped_column(ENUM("gmail", "instagram", "linkedin", "shopify", name="platform_type", create_type=False))
     external_contact: Mapped[Optional[str]] = mapped_column(String(255))
     subject: Mapped[Optional[str]] = mapped_column(String(500))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

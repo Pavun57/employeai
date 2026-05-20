@@ -18,7 +18,7 @@ class LLMProvider:
         if settings.llm_provider == "groq":
             self.base_url = settings.groq_base_url
             self.api_key = settings.groq_api_key
-            self.model = settings.llm_model or "llama-3.3-70b-versatile"
+            self.model = "llama-3.3-70b-versatile" if settings.llm_model in ("", "default") else settings.llm_model
         elif settings.llm_provider == "lmstudio":
             self.base_url = settings.llm_base_url
             self.api_key = settings.llm_api_key or "lm-studio"
