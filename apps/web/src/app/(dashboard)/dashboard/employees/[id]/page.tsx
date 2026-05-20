@@ -1,0 +1,672 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Bot,
+  MessageSquare,
+  Linkedin,
+  Mail,
+  Check,
+  Link2,
+  Play,
+  Pause,
+  Trash2,
+  Upload,
+  Plus,
+  X,
+  FileText,
+  Sparkles,
+} from "lucide-react";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+export default function AgentDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const agentId = params.id as string;
+
+  const [agent, setAgent] = useState<any>(null);
+  const [integrations, setIntegrations] = useState<any[]>([]);
+  const [kbEntries, setKbEntries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // LinkedIn config form
+  const [linkedInConfig, setLinkedInConfig] = useState({
+    topics: [] as string[],
+    newTopic: "",
+    posting_style: "professional",
+    tone: "informative",
+    posting_frequency: "daily",
+    preferred_time: "09:00",
+    include_hashtags: true,
+    max_length: 1300,
+  });
+
+  // KB form
+  const [showAddKB, setShowAddKB] = useState(false);
+  const [kbForm, setKbForm] = useState({ title: "", content: "", category: "" });
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, [agentId]);
+
+  async function loadData() {
+    try {
+      const [agentData, integrationsData] = await Promise.all([
+        api.getAgent(agentId),
+        api.listIntegrations(),
+      ]);
+      setAgent(agentData);
+      setIntegrations(integrationsData);
+
+      // Load LinkedIn config
+      if (agentData.agent_type === "linkedin_poster" && agentData.linkedin_config) {
+        setLinkedInConfig((prev) => ({
+          ...prev,
+          topics: agentData.linkedin_config.topics || [],
+          posting_style: agentData.linkedin_config.posting_style || "professional",
+          tone: agentData.linkedin_config.tone || "informative",
+          posting_frequency: agentData.linkedin_config.posting_frequency || "daily",
+          preferred_time: agentData.linkedin_config.preferred_time || "09:00",
+          include_hashtags: agentData.linkedin_config.include_hashtags ?? true,
+          max_length: agentData.linkedin_config.max_length || 1300,
+        }));
+      }
+
+      // Load KB entries for support agents
+      if (agentData.agent_type === "support") {
+        const kbData = await api.listKnowledgeBase();
+        setKbEntries(kbData.entries || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function getRequiredPlatform() {
+    if (!agent) return null;
+    return agent.agent_type === "support" ? "gmail" : "linkedin";
+  }
+
+  function isPlatformConnected() {
+    const platform = getRequiredPlatform();
+    return integrations.some((i) => i.platform === platform && i.is_active);
+  }
+
+  async function handleConnect() {
+    const platform = getRequiredPlatform();
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/integrations/oauth/${platform}/authorize`;
+  }
+
+  async function saveLinkedInConfig() {
+    setSaving(true);
+    try {
+      await api.updateLinkedInConfig(agentId, {
+        topics: linkedInConfig.topics,
+        posting_style: linkedInConfig.posting_style,
+        tone: linkedInConfig.tone,
+        posting_frequency: linkedInConfig.posting_frequency,
+        preferred_time: linkedInConfig.preferred_time,
+        include_hashtags: linkedInConfig.include_hashtags,
+        max_length: linkedInConfig.max_length,
+      });
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function addTopic() {
+    const topic = linkedInConfig.newTopic.trim();
+    if (!topic || linkedInConfig.topics.includes(topic)) return;
+    setLinkedInConfig((prev) => ({
+      ...prev,
+      topics: [...prev.topics, topic],
+      newTopic: "",
+    }));
+  }
+
+  function removeTopic(topic: string) {
+    setLinkedInConfig((prev) => ({
+      ...prev,
+      topics: prev.topics.filter((t) => t !== topic),
+    }));
+  }
+
+  async function handleAddKBEntry(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      await api.createKBEntry({
+        title: kbForm.title,
+        content: kbForm.content,
+        category: kbForm.category || undefined,
+      });
+      setKbForm({ title: "", content: "", category: "" });
+      setShowAddKB(false);
+      const kbData = await api.listKnowledgeBase();
+      setKbEntries(kbData.entries || []);
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        await api.uploadKBFile(file);
+      }
+      const kbData = await api.listKnowledgeBase();
+      setKbEntries(kbData.entries || []);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function deleteKBEntry(id: string) {
+    if (!confirm("Delete this knowledge base entry?")) return;
+    try {
+      await api.deleteKBEntry(id);
+      setKbEntries((prev) => prev.filter((e) => e.id !== id));
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function toggleAgent() {
+    if (!agent) return;
+    const newStatus = agent.status === "active" ? "paused" : "active";
+    try {
+      await api.updateAgent(agentId, { status: newStatus });
+      setAgent((prev: any) => ({ ...prev, status: newStatus }));
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function runAgent() {
+    try {
+      await api.runAgent(agentId);
+      alert("Agent is running! Check Activity for results.");
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function generatePost() {
+    try {
+      const result = await api.generatePost(agentId);
+      alert(`Post draft created! Go to Post Drafts to review it.`);
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function deleteAgent() {
+    if (!confirm(`Delete "${agent.name}"? This cannot be undone.`)) return;
+    try {
+      await api.deleteAgent(agentId);
+      router.push("/dashboard/employees");
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!agent) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Agent not found</p>
+        <button onClick={() => router.push("/dashboard/employees")} className="text-primary mt-2 text-sm underline">
+          Back to agents
+        </button>
+      </div>
+    );
+  }
+
+  const isSupport = agent.agent_type === "support";
+  const isLinkedIn = agent.agent_type === "linkedin_poster";
+  const connected = isPlatformConnected();
+  const platformName = isSupport ? "Gmail" : "LinkedIn";
+  const PlatformIcon = isSupport ? Mail : Linkedin;
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => router.push("/dashboard/employees")}
+          className="rounded-lg p-2 hover:bg-accent transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold">{agent.name}</h1>
+          <p className="text-sm text-muted-foreground">
+            {isSupport ? "Customer Support Agent" : "LinkedIn Content Agent"}
+          </p>
+        </div>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium",
+            agent.status === "active"
+              ? "bg-green-100 text-green-700"
+              : agent.status === "paused"
+              ? "bg-amber-100 text-amber-700"
+              : "bg-gray-100 text-gray-700"
+          )}
+        >
+          <div
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              agent.status === "active"
+                ? "bg-green-500 animate-pulse"
+                : agent.status === "paused"
+                ? "bg-amber-500"
+                : "bg-gray-400"
+            )}
+          />
+          {agent.status}
+        </span>
+      </div>
+
+      {/* Step 1: Integration Status */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary text-sm font-bold">
+            1
+          </div>
+          <h2 className="text-lg font-semibold">Connect {platformName}</h2>
+        </div>
+
+        {connected ? (
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 border border-green-200">
+            <div className="h-10 w-10 rounded-lg bg-green-100 flex items-center justify-center">
+              <Check className="h-5 w-5 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-green-800">
+                {platformName} Connected
+              </p>
+              <p className="text-xs text-green-600">
+                Your agent can {isSupport ? "read and reply to emails" : "publish posts to LinkedIn"}
+              </p>
+            </div>
+            <PlatformIcon className="h-5 w-5 text-green-600" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
+            <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center">
+              <Link2 className="h-5 w-5 text-amber-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-800">
+                {platformName} Not Connected
+              </p>
+              <p className="text-xs text-amber-600">
+                Connect {platformName} to enable your agent
+              </p>
+            </div>
+            <button
+              onClick={handleConnect}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Connect
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Step 2: Agent Configuration */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary text-sm font-bold">
+            2
+          </div>
+          <h2 className="text-lg font-semibold">
+            {isLinkedIn ? "Configure Topics & Style" : "Knowledge Base"}
+          </h2>
+        </div>
+
+        {/* LinkedIn Configuration */}
+        {isLinkedIn && (
+          <div className="space-y-5">
+            {/* Topics */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Topics to post about</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={linkedInConfig.newTopic}
+                  onChange={(e) =>
+                    setLinkedInConfig((prev) => ({ ...prev, newTopic: e.target.value }))
+                  }
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTopic())}
+                  placeholder="e.g. AI in healthcare, startup tips..."
+                  className="flex-1 rounded-lg border bg-background px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+                <button
+                  onClick={addTopic}
+                  type="button"
+                  className="rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              {linkedInConfig.topics.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {linkedInConfig.topics.map((topic) => (
+                    <span
+                      key={topic}
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                    >
+                      {topic}
+                      <button onClick={() => removeTopic(topic)} className="hover:text-red-500">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Style & Tone */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Posting Style</label>
+                <select
+                  value={linkedInConfig.posting_style}
+                  onChange={(e) =>
+                    setLinkedInConfig((prev) => ({ ...prev, posting_style: e.target.value }))
+                  }
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="professional">Professional</option>
+                  <option value="casual">Casual</option>
+                  <option value="storytelling">Storytelling</option>
+                  <option value="educational">Educational</option>
+                  <option value="thought_leadership">Thought Leadership</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tone</label>
+                <select
+                  value={linkedInConfig.tone}
+                  onChange={(e) =>
+                    setLinkedInConfig((prev) => ({ ...prev, tone: e.target.value }))
+                  }
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="informative">Informative</option>
+                  <option value="inspirational">Inspirational</option>
+                  <option value="conversational">Conversational</option>
+                  <option value="authoritative">Authoritative</option>
+                  <option value="humorous">Humorous</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Frequency & Time */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Posting Frequency</label>
+                <select
+                  value={linkedInConfig.posting_frequency}
+                  onChange={(e) =>
+                    setLinkedInConfig((prev) => ({ ...prev, posting_frequency: e.target.value }))
+                  }
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekdays">Weekdays Only</option>
+                  <option value="twice_week">Twice a Week</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Preferred Time</label>
+                <input
+                  type="time"
+                  value={linkedInConfig.preferred_time}
+                  onChange={(e) =>
+                    setLinkedInConfig((prev) => ({ ...prev, preferred_time: e.target.value }))
+                  }
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
+
+            {/* Options */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Include Hashtags</label>
+                <p className="text-xs text-muted-foreground">Add relevant hashtags to posts</p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setLinkedInConfig((prev) => ({ ...prev, include_hashtags: !prev.include_hashtags }))
+                }
+                className={cn(
+                  "relative h-6 w-11 rounded-full transition-colors",
+                  linkedInConfig.include_hashtags ? "bg-primary" : "bg-muted"
+                )}
+              >
+                <div
+                  className={cn(
+                    "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform shadow-sm",
+                    linkedInConfig.include_hashtags ? "translate-x-5" : "translate-x-0.5"
+                  )}
+                />
+              </button>
+            </div>
+
+            <button
+              onClick={saveLinkedInConfig}
+              disabled={saving || linkedInConfig.topics.length === 0}
+              className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save Configuration"}
+            </button>
+          </div>
+        )}
+
+        {/* Support Agent - Knowledge Base */}
+        {isSupport && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Upload documents or add entries that your agent will use to answer customer emails.
+            </p>
+
+            {/* File Upload */}
+            <div className="rounded-lg border-2 border-dashed p-6 text-center">
+              <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+              <p className="text-sm font-medium">
+                {uploading ? "Uploading..." : "Upload PDF or text files"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                PDF, TXT, or MD files up to 10MB
+              </p>
+              <label className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer">
+                <Upload className="h-4 w-4" />
+                Choose Files
+                <input
+                  type="file"
+                  accept=".pdf,.txt,.md"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  disabled={uploading}
+                />
+              </label>
+            </div>
+
+            {/* Manual Entry */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Or add manually</span>
+              <button
+                onClick={() => setShowAddKB(true)}
+                className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium hover:bg-accent/80 transition-colors"
+              >
+                <Plus className="h-3 w-3" /> Add Entry
+              </button>
+            </div>
+
+            {/* Add KB Form */}
+            {showAddKB && (
+              <form onSubmit={handleAddKBEntry} className="rounded-lg border p-4 space-y-3">
+                <input
+                  type="text"
+                  value={kbForm.title}
+                  onChange={(e) => setKbForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="Title (e.g. Refund Policy)"
+                  required
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <textarea
+                  value={kbForm.content}
+                  onChange={(e) => setKbForm((f) => ({ ...f, content: e.target.value }))}
+                  placeholder="Content..."
+                  required
+                  rows={4}
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                />
+                <input
+                  type="text"
+                  value={kbForm.category}
+                  onChange={(e) => setKbForm((f) => ({ ...f, category: e.target.value }))}
+                  placeholder="Category (optional)"
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddKB(false)}
+                    className="flex-1 rounded-lg border px-3 py-2 text-sm hover:bg-accent transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* KB Entries List */}
+            {kbEntries.length > 0 && (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {kbEntries.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="flex items-center gap-3 rounded-lg border p-3"
+                  >
+                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{entry.title}</p>
+                      {entry.category && (
+                        <span className="text-xs text-muted-foreground">{entry.category}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => deleteKBEntry(entry.id)}
+                      className="text-muted-foreground hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Step 3: Activate & Actions */}
+      <div className="rounded-xl border bg-card p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary text-sm font-bold">
+            3
+          </div>
+          <h2 className="text-lg font-semibold">Activate & Run</h2>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={toggleAgent}
+            disabled={!connected}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50",
+              agent.status === "active"
+                ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                : "bg-green-100 text-green-700 hover:bg-green-200"
+            )}
+          >
+            {agent.status === "active" ? (
+              <>
+                <Pause className="h-4 w-4" /> Pause Agent
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" /> Activate Agent
+              </>
+            )}
+          </button>
+
+          {agent.status === "active" && isSupport && (
+            <button
+              onClick={runAgent}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-2.5 text-sm font-medium transition-colors"
+            >
+              <Play className="h-4 w-4" /> Process Inbox Now
+            </button>
+          )}
+
+          {agent.status === "active" && isLinkedIn && (
+            <button
+              onClick={generatePost}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-2.5 text-sm font-medium transition-colors"
+            >
+              <Sparkles className="h-4 w-4" /> Generate Post
+            </button>
+          )}
+
+          <button
+            onClick={deleteAgent}
+            className="inline-flex items-center gap-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 px-4 py-2.5 text-sm font-medium transition-colors ml-auto"
+          >
+            <Trash2 className="h-4 w-4" /> Delete
+          </button>
+        </div>
+
+        {!connected && (
+          <p className="text-xs text-muted-foreground mt-3">
+            Connect {platformName} above to activate your agent.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

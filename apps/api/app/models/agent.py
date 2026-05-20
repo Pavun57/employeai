@@ -30,10 +30,10 @@ class AIEmployee(Base, TimestampMixin):
 
     # Relationships
     organization = relationship("Organization", back_populates="ai_employees")
-    tasks = relationship("Task", back_populates="agent")
-    conversations = relationship("Conversation", back_populates="agent")
-    post_drafts = relationship("PostDraft", back_populates="agent")
-    linkedin_config = relationship("LinkedInAgentConfig", back_populates="agent", uselist=False)
+    tasks = relationship("Task", back_populates="agent", cascade="all, delete-orphan")
+    conversations = relationship("Conversation", back_populates="agent", cascade="all, delete-orphan")
+    post_drafts = relationship("PostDraft", back_populates="agent", cascade="all, delete-orphan")
+    linkedin_config = relationship("LinkedInAgentConfig", back_populates="agent", uselist=False, cascade="all, delete-orphan")
 
 
 class ConnectedPlatform(Base, TimestampMixin):

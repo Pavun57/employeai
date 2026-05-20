@@ -203,6 +203,27 @@ class ApiClient {
     return this.request<void>(`/api/knowledge-base/${id}`, { method: "DELETE" });
   }
 
+  async uploadKBFile(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers["Authorization"] = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(
+      `${API_BASE}/api/knowledge-base/upload`,
+      { method: "POST", headers, body: formData }
+    );
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Upload failed" }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+    return response.json();
+  }
+
   // Post Drafts
   async listPostDrafts(params?: { status?: string; agent_id?: string; limit?: number }) {
     const searchParams = new URLSearchParams();
